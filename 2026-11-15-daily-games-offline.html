@@ -237,6 +237,11 @@
 
   .next-note { margin: -8px 0 16px; }
   .code-cap a { color: inherit; text-underline-offset: 3px; }
+  [data-public] { display: none; }
+  .about { margin: 24px 0 0; padding: 16px 20px 18px; background: var(--card); border: 1px solid var(--line); border-top: var(--frame) solid var(--ink); border-radius: 0 0 var(--radius-card) var(--radius-card); }
+  .about-h { margin-bottom: 4px; font: 700 18px/26px var(--serif); }
+  .about .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .about .links a { text-decoration: none; }
   .colophon { margin-top: 56px; padding-top: 12px; border-top: var(--frame) solid var(--ink); text-align: center; }
 
 
@@ -309,8 +314,14 @@
   <p class="dateline">By Pranav Bakre · Sunday, 15 November 2026<span class="edition"></span></p>
 </header>
 
+<aside class="about" aria-label="About Daily Games">
+  <p class="about-h">About Daily Games</p>
+  <p>Daily Games is a small web app I built: three daily logic puzzles, Zip, Tango and Sudoku, in plain HTML, CSS and JavaScript. It is served as static files from GitHub Pages, with no backend and no accounts. Puzzles are generated on the device from the date, and times and streaks stay in <code>localStorage</code>. It installs to the home screen and plays with no connection; this lesson is how that last part works, read from its real service worker.</p>
+  <p class="links"><a class="pill solid" href="https://pranavbakre.github.io/daily-games/">Play it</a><a class="pill" href="https://github.com/PranavBakre/daily-games/tree/b4f6ba2c0466be796ba285412f14428357646a7e">Source at sw.js v6</a></p>
+</aside>
+
 <section class="lede" id="tldr" aria-label="In short">
-  <p><code>sw.js</code> is a reverse proxy on the phone. On the first visit it saves the app's 15 files into a bucket named <code>daily-games-v6</code>. After that, page loads try the network and fall back to the saved page; every other file comes from the bucket at once and is refreshed in the background. A release reaches phones as a set only when <code>VERSION</code> changes, which swaps in a new proxy with a new bucket and deletes the old one.</p>
+  <p><code>sw.js</code> is a reverse proxy on the phone. On the first visit it saves the app's 15 files<span> (the page under two URLs, its stylesheet and manifest, seven scripts and four icons)</span> into a bucket named <code>daily-games-v6</code>. After that, page loads try the network and fall back to the saved page; every other file comes from the bucket at once and is refreshed in the background. A release reaches phones as a set only when <code>VERSION</code> changes, which swaps in a new proxy with a new bucket and deletes the old one.</p>
   <p class="meta">8 min read · 3 events, 25 steps to click, 7 questions</p>
 </section>
 
