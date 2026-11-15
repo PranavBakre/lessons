@@ -292,37 +292,14 @@
 <header class="strip">
   <div class="strip-in">
     <a class="strip-name" href="./index.html">Lessons</a>
-    <nav aria-label="Sections">
-      <a href="#events">The three events</a>
-      <a href="#trade-offs">Trade-offs</a>
-      <a href="#failure-modes">Failure modes</a>
-      <a href="#try-it">Try it</a>
-      <a href="#next">Next</a>
-      <a href="#sources">Sources</a>
-    </nav>
+    <nav aria-label="Sections"></nav>
     <button class="pill theme-toggle" type="button"></button>
   </div>
 </header>
 
 <nav class="toc" aria-label="Contents">
   <p class="toc-h">Contents</p>
-  <ol>
-    <li><a href="#tldr">In short</a></li>
-    <li><a href="#events">The three events</a>
-      <ol class="sub">
-        <li><a href="#first-visit"><i class="sw" style="background: var(--zip)"></i>First visit</a></li>
-        <li><a href="#offline-visit"><i class="sw" style="background: var(--tango)"></i>Offline launch</a></li>
-        <li><a href="#after-a-deploy"><i class="sw" style="background: var(--sudoku)"></i>After a deploy</a></li>
-      </ol>
-    </li>
-    <li><a href="#trade-offs">Trade-offs</a></li>
-    <li><a href="#failure-modes">Failure modes</a></li>
-    <li><a href="#at-scale">At scale</a></li>
-    <li><a href="#check">Check yourself</a></li>
-    <li><a href="#try-it">Try it</a></li>
-    <li><a href="#next">Next</a></li>
-    <li><a href="#sources">Sources</a></li>
-  </ol>
+  <ol></ol>
 </nav>
 
 <main class="page" id="top">
@@ -350,7 +327,7 @@
 
 <ol class="events">
 
-<li class="event accent-zip" id="first-visit">
+<li class="event accent-zip" id="first-visit" data-toc="First visit">
 <header class="ev-head">
   <div class="ev-block" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="38" height="38" style="fill: var(--board)"/><path d="M17.7 5v38M30.3 5v38M5 17.7h38M5 30.3h38" stroke-width="1"/><rect x="5" y="30.3" width="38" height="12.7" fill="currentColor" stroke="none"/><path d="M24 9.5v15" stroke-width="4.5" stroke-linecap="round"/><path d="M17.5 19 24 25.5 30.5 19" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
   <div class="ev-title">
@@ -376,7 +353,7 @@
 </div>
 </li>
 
-<li class="event accent-tango" id="offline-visit">
+<li class="event accent-tango" id="offline-visit" data-toc="Offline launch">
 <header class="ev-head">
   <div class="ev-block" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="38" height="38" style="fill: var(--board)"/><path d="M24 5v38M5 24h38" stroke-width="1"/><path d="M11 21.5a18 18 0 0 1 26 0M15.5 26.5a11.5 11.5 0 0 1 17 0" stroke-width="3.6" stroke-linecap="round"/><circle cx="24" cy="32.5" r="3.4" fill="currentColor" stroke="none"/><path d="M10.5 10.5l27 27" style="stroke: var(--board)" stroke-width="7.5"/><path d="M10.5 10.5l27 27" stroke-width="3.6" stroke-linecap="round"/></svg></div>
   <div class="ev-title">
@@ -399,7 +376,7 @@
 </div>
 </li>
 
-<li class="event accent-sudoku" id="after-a-deploy">
+<li class="event accent-sudoku" id="after-a-deploy" data-toc="After a deploy">
 <header class="ev-head">
   <div class="ev-block" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="38" height="38" style="fill: var(--board)"/><path d="M24 5v38" stroke-width="1"/><g fill="currentColor" stroke="none" font-family="Georgia, serif" font-weight="700" font-size="12" text-anchor="middle"><text x="14.5" y="28.5">v6</text><text x="33.5" y="28.5">v7</text></g><path d="M8.5 36 20.5 12" stroke-width="2.6" stroke-linecap="round"/><path d="M27.5 36h12" stroke-width="3" stroke-linecap="round"/></svg></div>
   <div class="ev-title">
@@ -495,6 +472,21 @@
 </main>
 
 <script>
+(() => {
+  const sections = [...document.querySelectorAll('.page > .lede, .page > .sec')];
+  const label = (sec) => sec.dataset.toc || (sec.id === 'tldr' ? 'In short' : sec.querySelector('.sec-h').textContent);
+  const item = (href, text, sub) => '<li><a href="#' + href + '">' + text + '</a>' + (sub || '') + '</li>';
+  const toc = sections.map((sec) => {
+    const evs = sec.id === 'events' ? [...sec.querySelectorAll('.event')] : [];
+    const sub = evs.length ? '<ol class="sub">' + evs.map((ev) => item(ev.id, '<i class="sw" style="background: var(--' + ev.className.match(/accent-(\w+)/)[1] + ')"></i>' + (ev.dataset.toc || ev.querySelector('.ev-title h3').textContent))).join('') + '</ol>' : '';
+    return item(sec.id, label(sec), sub);
+  }).join('');
+  document.querySelector('.toc ol').innerHTML = toc;
+  document.querySelector('.strip nav').innerHTML = sections.filter((s) => s.id !== 'tldr' && s.id !== 'at-scale' && s.id !== 'check').map((s) => '<a href="#' + s.id + '">' + label(s) + '</a>').join('');
+})();
+</script>
+
+<script>
   const SIM = {
     nodes: [{ id: 'page', name: 'page' }, { id: 'sw', name: 'sw.js' }, { id: 'net', name: 'network' }],
     store: { id: 'cache', name: 'Cache Storage', under: 'sw', slots: 15, rows: [{ id: 'v6', label: 'daily-games-v6' }, { id: 'v7', label: 'daily-games-v7' }] },
@@ -564,7 +556,7 @@
   const W = 340, NW = 92, NH = 52, NY = 16;
   const L = {};
   NODES.forEach((n, i) => { L[n.id] = [16 + NW / 2 + i * ((W - 32 - NW) / (NODES.length - 1)), NY + NH / 2]; });
-  L.bypass = [[L[BYPASS[0]][0], 92], [L[BYPASS[1]][0], 92]];
+  if (BYPASS) L.bypass = [[L[BYPASS[0]][0], 92], [L[BYPASS[1]][0], 92]];
   L.panel = { x: 16, y: 116, w: W - 32, h: 44 + STORE.rows.length * 44 };
   L[STORE.id] = [L[STORE.under][0], L.panel.y];
   L.h = L.panel.y + L.panel.h + 16;
@@ -626,7 +618,7 @@
       const line = (pts, key, cls = '') => { this.edges[key] = svgEl('polyline', { class: `edge ${cls}`, points: pts.map((p) => p.join(',')).join(' ') }, edges); };
       NODES.slice(1).forEach((n, i) => line([L[NODES[i].id], L[n.id]], edgeKey(NODES[i].id, n.id)));
       line([L[STORE.under], L[STORE.id]], edgeKey(STORE.under, STORE.id));
-      line([L[BYPASS[0]], ...L.bypass, L[BYPASS[1]]], 'bypass', 'bypass');
+      if (BYPASS) line([L[BYPASS[0]], ...L.bypass, L[BYPASS[1]]], 'bypass', 'bypass');
       const layer = g('nodes');
       const text = (cls, x, y, t, parent) => { const e = svgEl('text', { class: cls, x, y }, parent); e.textContent = t; return e; };
       this.nodes = {};
@@ -672,7 +664,7 @@
         sub.textContent = st.sub[n.id] || '';
         sub.classList.toggle('bad', !!st.bad[n.id]);
       }
-      const between = NODES.slice(NODES.findIndex((n) => n.id === BYPASS[0]) + 1, NODES.findIndex((n) => n.id === BYPASS[1]));
+      const between = BYPASS ? NODES.slice(NODES.findIndex((n) => n.id === BYPASS[0]) + 1, NODES.findIndex((n) => n.id === BYPASS[1])) : [];
       for (const k in this.edges) {
         const e = this.edges[k];
         const shown = k === 'bypass' ? between.some((n) => st.off[n.id]) : !k.split('-').some((id) => st.off[id]);
