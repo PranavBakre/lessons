@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How Daily Games works offline · Lessons</title>
-<meta name="description" content="How a hand-written service worker keeps a small PWA working with no network: the first visit, an offline launch, and a deploy, step by step.">
+<meta name="description" content="My puzzle app opens on a flight with Wi-Fi off. How its 94-line service worker does that: the first visit, an offline launch, and a deploy, step by step.">
 <meta name="author" content="Pranav Bakre">
 <meta property="og:type" content="article">
 <meta property="og:title" content="How Daily Games works offline">
-<meta property="og:description" content="How a hand-written service worker keeps a small PWA working with no network: the first visit, an offline launch, and a deploy, step by step.">
+<meta property="og:description" content="My puzzle app opens on a flight with Wi-Fi off. How its 94-line service worker does that: the first visit, an offline launch, and a deploy, step by step.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23121212'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23f7f4ec' text-anchor='middle'%3EL%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -310,29 +310,29 @@
 <main class="page" id="top">
 <header class="mast">
   <h1>How Daily Games works offline</h1>
-  <p class="dek">How the PWA keeps working with no network</p>
+  <p class="dek">It opens on a flight with Wi-Fi off. 94 lines of <code>sw.js</code> make that work.</p>
   <p class="dateline">By Pranav Bakre · Sunday, 15 November 2026<span class="edition"></span></p>
 </header>
 
 <aside class="about" aria-label="About Daily Games">
   <p class="about-h">About Daily Games</p>
-  <p>Daily Games is a small web app I built: three daily logic puzzles, Zip, Tango and Sudoku, in plain HTML, CSS and JavaScript. It is served as static files from GitHub Pages, with no backend and no accounts. Puzzles are generated on the device from the date, and times and streaks stay in <code>localStorage</code>. It installs to the home screen and plays with no connection; this lesson is how that last part works, read from its real service worker.</p>
+  <p>Daily Games is my take on LinkedIn's daily puzzles: Zip, Tango and a mini Sudoku, in plain HTML, CSS and JavaScript. No framework, no backend, no accounts. GitHub Pages serves it as static files, puzzles are generated on your phone from the date, and times and streaks stay in <code>localStorage</code>. It installs to the home screen and plays with no connection. This lesson is about that last part, read from the real service worker.</p>
   <p class="links"><a class="pill solid" href="https://pranavbakre.github.io/daily-games/">Play it</a><a class="pill" href="https://github.com/PranavBakre/daily-games/tree/b4f6ba2c0466be796ba285412f14428357646a7e">Source at sw.js v6</a></p>
 </aside>
 
 <section class="lede" id="tldr" aria-label="In short">
-  <p><code>sw.js</code> is a reverse proxy on the phone. On the first visit it saves the app's 15 files<span> (the page under two URLs, its stylesheet and manifest, seven scripts and four icons)</span> into a bucket named <code>daily-games-v6</code>. After that, page loads try the network and fall back to the saved page; every other file comes from the bucket at once and is refreshed in the background. A release reaches phones as a set only when <code>VERSION</code> changes, which swaps in a new proxy with a new bucket and deletes the old one.</p>
+  <p>The whole offline story is one 94-line file, <code>sw.js</code>. It's basically a reverse proxy that runs on your phone. On your first visit it saves the app's 15 files<span> (the page under two URLs, its stylesheet and manifest, seven scripts and four icons)</span> into a bucket called <code>daily-games-v6</code>. After that, instead of going to GitHub Pages, every request goes through it: page loads try the network and fall back to the saved page, and every other file comes from the bucket straight away and gets refreshed in the background. A release only reaches your phone when I change <code>VERSION</code>. That swaps in a new proxy with a new bucket and deletes the old one.</p>
   <p class="meta">8 min read · 3 events, 25 steps to click, 7 questions</p>
 </section>
 
 <section class="sec" id="events">
 <h2 class="sec-h">The three events</h2>
 <div class="prose">
-<p>Read <code>sw.js</code> as an nginx in front of the app. Three differences matter, and each shows up below:</p>
+<p>If you know nginx, you already know most of this. <code>sw.js</code> sits between the page and the network and decides what gets served. Three things make it different, and each one shows up below:</p>
 <ul>
-<li>it only exists after the first visit;</li>
-<li>the browser starts it per request and may stop it once a response is sent;</li>
-<li>the browser, not you, decides when a new version replaces it.</li>
+<li>it doesn't exist until your first visit installs it;</li>
+<li>the browser starts it for each request and can stop it once a response is out;</li>
+<li>the browser decides when a new version takes over, not you.</li>
 </ul>
 </div>
 
@@ -348,11 +348,11 @@
   </div>
 </header>
 <div class="prose">
-<p>The page loads straight from GitHub Pages. After <code>load</code>, it registers the proxy, so the install doesn't compete with the first render.</p>
+<p>Let's say you open the app at home first. There is no proxy yet, so the page loads straight from GitHub Pages like any other site. Only after <code>load</code> does it register the proxy, so the install doesn't fight the first render.</p>
 </div>
 <div class="code"><p class="code-cap"><a href="https://github.com/PranavBakre/daily-games/blob/b4f6ba2c0466be796ba285412f14428357646a7e/js/app.js#L579">js/app.js · line 579</a></p><pre><span class="wrap"><span class="l hl">navigator.serviceWorker.register('./sw.js')</span></span></pre></div>
 <div class="prose">
-<p>The proxy's <code>install</code> handler downloads the 15 files into the bucket. If any one comes back non-2xx, the install fails and the browser retries on a later visit.</p>
+<p>The proxy's <code>install</code> handler then downloads all 15 files into the bucket. It's all or nothing: if even one comes back non-2xx, the install fails and the browser tries again on a later visit.</p>
 </div>
 <div class="code"><p class="code-cap"><a href="https://github.com/PranavBakre/daily-games/blob/b4f6ba2c0466be796ba285412f14428357646a7e/sw.js#L30-L32">sw.js · lines 30–32</a></p><pre><span class="wrap"><span class="l hl">const cache = await caches.open(CACHE);  // 'daily-games-v6'</span><span class="l hl">await cache.addAll(ASSETS);  // 15 files, all or nothing</span><span class="l">await self.skipWaiting();</span></span></pre></div>
 <figure class="board" data-start="first" aria-label="Steps of the first visit: no proxy yet, then register, install and fill the v6 bucket."></figure>
@@ -369,13 +369,13 @@
   <div class="ev-block" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="38" height="38" style="fill: var(--board)"/><path d="M24 5v38M5 24h38" stroke-width="1"/><path d="M11 21.5a18 18 0 0 1 26 0M15.5 26.5a11.5 11.5 0 0 1 17 0" stroke-width="3.6" stroke-linecap="round"/><circle cx="24" cy="32.5" r="3.4" fill="currentColor" stroke="none"/><path d="M10.5 10.5l27 27" style="stroke: var(--board)" stroke-width="7.5"/><path d="M10.5 10.5l27 27" stroke-width="3.6" stroke-linecap="round"/></svg></div>
   <div class="ev-title">
     <h3>Second visit, offline</h3>
-    <p class="one">Second visit, offline, from the home-screen icon.</p>
+    <p class="one">On the flight, Wi-Fi off, from the home-screen icon.</p>
     <p class="meta">No. 2 · 10 steps · 2 questions</p>
   </div>
 </header>
 <div class="prose">
-<p>Now every request from the page goes through the proxy. Non-GET and cross-site requests pass straight to the network (<code>sw.js:49–52</code>). The rest are routed on one question: is this a page load?</p>
-<p>Offline, the page fetch fails immediately and the saved <code>index.html</code> is served. Every screen is a <code>#</code> route, so that one page covers them all. JS, CSS and icons come from the bucket. Today's puzzle is generated from the date, and streaks come from <code>localStorage['daily-games:v1']</code> (<code>js/storage.js:3</code>).</p>
+<p>Now you're on the flight with Wi-Fi off, and you open it from the home-screen icon. This time every request goes through the proxy. POSTs and requests to other sites pass straight to the network (<code>sw.js:49–52</code>). Everything else gets one question: is this a page load?</p>
+<p>The first request is, so the proxy tries the network. Offline, that fetch fails instantly, and the saved <code>index.html</code> is served instead. Every screen is a <code>#</code> route, so that one page covers the whole app. The JS, CSS and icons come from the bucket. Today's puzzle is generated from the date, and your streak comes from <code>localStorage['daily-games:v1']</code> (<code>js/storage.js:3</code>). Nothing needed the network.</p>
 </div>
 <div class="code"><p class="code-cap"><a href="https://github.com/PranavBakre/daily-games/blob/b4f6ba2c0466be796ba285412f14428357646a7e/sw.js#L55-L83">sw.js · lines 55–83, trimmed</a></p><pre><span class="wrap"><span class="l hl">if (request.mode === 'navigate') {</span><span class="l">  try { fresh = await fetch(request); cache.put(INDEX, …) }</span><span class="l hl">  catch { return caches.match(INDEX) }  // offline</span><span class="l hl">if (cached) { fetch(request).then(…); return cached }</span></span></pre></div>
 <p class="note meta">A bar marks the lines the text cites. The rest of 55–83 is trimmed, and … marks code cut from a line.</p>
@@ -397,7 +397,7 @@
   </div>
 </header>
 <div class="prose">
-<p>On the next page load, the browser re-downloads <code>sw.js</code>, skipping the HTTP cache for this one file, and compares bytes. Changing <code>'v6'</code> to <code>'v7'</code> is the byte change. The new proxy installs next to the running one and fills <code>daily-games-v7</code>; <code>skipWaiting()</code> lets it take over without waiting for open tabs to close. On <code>activate</code> it deletes every other bucket and claims the open tabs.</p>
+<p>Now I ship a fix and change <code>VERSION</code> from <code>'v6'</code> to <code>'v7'</code>. You land and open the app. On that page load the browser re-downloads <code>sw.js</code>, skipping the HTTP cache for this one file, and compares bytes. <code>'v6'</code> to <code>'v7'</code> is the byte change. Instead of replacing the running proxy, the new one installs next to it and fills <code>daily-games-v7</code>. <code>skipWaiting()</code> lets it take over without waiting for your open tabs to close. On <code>activate</code> it deletes every other bucket and takes over the open tabs.</p>
 </div>
 <div class="code"><p class="code-cap"><a href="https://github.com/PranavBakre/daily-games/blob/b4f6ba2c0466be796ba285412f14428357646a7e/sw.js#L41-L42">sw.js · lines 41–42</a></p><pre><span class="wrap"><span class="l hl">keys.filter(… !== CACHE).map(… caches.delete(key));  // drop v6</span><span class="l hl">await self.clients.claim();</span></span></pre></div>
 <figure class="board" data-start="deploy" aria-label="Steps of a deploy: v7 installs beside v6, takes over, and v6 is deleted."></figure>
@@ -414,28 +414,28 @@
 <section class="sec" id="trade-offs">
 <h2 class="sec-h">Trade-offs</h2>
 <div class="box box-cols">
-<div class="item"><h3><span class="num">1</span><span>Hand-written proxy, 95 lines</span></h3><p><span class="lbl">Instead of</span>Workbox, the standard: a build step generates the file list with a hash per file, and only changed files are re-downloaded.</p><p><span class="lbl">This costs</span>The file list and the version bump are manual.</p><p><span class="lbl">Workbox costs</span>A build step and a dependency in a repo with neither. Worth it once a forgotten bump costs more than adding the build.</p></div>
-<div class="item"><h3><span class="num">2</span><span>Network first for page loads</span></h3><p><span class="lbl">Instead of</span>Bucket first for page loads too.</p><p><span class="lbl">This costs</span>A weak signal stalls the launch.</p><p><span class="lbl">Bucket first costs</span>Every release shows one load late.</p></div>
-<div class="item"><h3><span class="num">3</span><span>Bucket first, background refresh, for files</span></h3><p><span class="lbl">Instead of</span>Bucket only, updated by version bumps.</p><p><span class="lbl">This costs</span>Files can mismatch the page for one visit.</p><p><span class="lbl">Bucket only costs</span>Never fresher than the last bump.</p></div>
-<div class="item"><h3><span class="num">4</span><span><code>skipWaiting</code> + <code>clients.claim</code></span></h3><p><span class="lbl">Instead of</span>Let the new version wait and show "Update ready, reload".</p><p><span class="lbl">This costs</span>An open tab switches buckets mid-game.</p><p><span class="lbl">Waiting costs</span>Update UI, and users who actually reload.</p></div>
-<div class="item"><h3><span class="num">5</span><span><code>localStorage</code></span></h3><p><span class="lbl">Instead of</span>IndexedDB.</p><p><span class="lbl">This costs</span>Synchronous and small; fine for one JSON blob written at most every 250 ms.</p><p><span class="lbl">IndexedDB costs</span>An async API; worth it for many records or blobs.</p></div>
+<div class="item"><h3><span class="num">1</span><span>Hand-written proxy, 94 lines</span></h3><p><span class="lbl">Instead of</span>Workbox, the standard: a build step generates the file list with a hash per file, and only changed files are re-downloaded.</p><p><span class="lbl">This costs</span>The file list and the version bump are manual.</p><p><span class="lbl">Workbox costs</span>A build step and a dependency in a repo with neither. Worth it once a forgotten bump costs more than adding the build.</p><p><span class="lbl">My take</span>For 15 files, hand-written is fine. The day I add a build step for something else, Workbox comes with it.</p></div>
+<div class="item"><h3><span class="num">2</span><span>Network first for page loads</span></h3><p><span class="lbl">Instead of</span>Bucket first for page loads too.</p><p><span class="lbl">This costs</span>A weak signal stalls the launch.</p><p><span class="lbl">Bucket first costs</span>Every release shows one load late.</p><p><span class="lbl">My take</span>Network first stays. The fix is a timeout (failure mode 4), not a different strategy.</p></div>
+<div class="item"><h3><span class="num">3</span><span>Bucket first, background refresh, for files</span></h3><p><span class="lbl">Instead of</span>Bucket only, updated by version bumps.</p><p><span class="lbl">This costs</span>Files can mismatch the page for one visit.</p><p><span class="lbl">Bucket only costs</span>Never fresher than the last bump.</p><p><span class="lbl">My take</span>Fine here. The one-visit mismatch only bites if I forget the bump, which is failure mode 3.</p></div>
+<div class="item"><h3><span class="num">4</span><span><code>skipWaiting</code> + <code>clients.claim</code></span></h3><p><span class="lbl">Instead of</span>Let the new version wait and show "Update ready, reload".</p><p><span class="lbl">This costs</span>An open tab switches buckets mid-game.</p><p><span class="lbl">Waiting costs</span>Update UI, and users who actually reload.</p><p><span class="lbl">My take</span>Worth it. Puzzles are short and unfinished boards are saved in <code>localStorage</code>, so a switch mid-game loses nothing. An "Update ready" banner is UI I don't need.</p></div>
+<div class="item"><h3><span class="num">5</span><span><code>localStorage</code></span></h3><p><span class="lbl">Instead of</span>IndexedDB.</p><p><span class="lbl">This costs</span>Synchronous and small; fine for one JSON blob written at most every 250 ms.</p><p><span class="lbl">IndexedDB costs</span>An async API; worth it for many records or blobs.</p><p><span class="lbl">My take</span><code>localStorage</code> until results have to follow you to another device. Then neither is the answer; that needs a backend.</p></div>
 </div>
 </section>
 
 <section class="sec" id="failure-modes">
 <h2 class="sec-h">Failure modes</h2>
 <div class="box box-cols fail">
-<div class="item"><h3><span class="num">1</span><span>An error page replaces the saved page</span></h3><p><span class="lbl">Breaks</span>The page-load branch saves any response without checking <code>ok</code> (<code>sw.js:59–61</code>). A mistyped URL under <code>/daily-games/</code> saves GitHub's 404 as the app.</p><p><span class="lbl">Detect</span>Launching offline shows a 404.</p><p><span class="lbl">Fix</span>Only save when <code>fresh.ok</code>.</p></div>
+<div class="item"><h3><span class="num">1</span><span>An error page replaces the saved page</span></h3><p><span class="lbl">Breaks</span>The page-load branch saves any response without checking <code>ok</code> (<code>sw.js:59–61</code>). A mistyped URL under <code>/daily-games/</code> saves GitHub's 404 as the app. Next time you're offline, the 404 is your app.</p><p><span class="lbl">Detect</span>Launching offline shows a 404.</p><p><span class="lbl">Fix</span>Only save when <code>fresh.ok</code>.</p></div>
 <div class="item"><h3><span class="num">2</span><span>New bucket filled from the HTTP cache</span></h3><p><span class="lbl">Breaks</span><code>addAll</code> uses normal fetches and Pages sends <code>max-age=600</code>. Within 10 minutes of a visit, the v7 bucket can hold v6 files.</p><p><span class="lbl">Detect</span>New bucket name, old file contents.</p><p><span class="lbl">Fix</span>Fetch with <code>new Request(url, {cache: 'reload'})</code> in <code>install</code>.</p></div>
 <div class="item"><h3><span class="num">3</span><span>Changed a file, forgot the bump</span></h3><p><span class="lbl">Breaks</span>Page and JS from different releases for one visit.</p><p><span class="lbl">Detect</span>DevTools → Application → Cache Storage still shows the old bucket name.</p><p><span class="lbl">Fix</span>Bump on every change, or let a build step hash the files.</p></div>
-<div class="item"><h3><span class="num">4</span><span>Weak signal</span></h3><p><span class="lbl">Breaks</span>Launch hangs on the network-first fetch.</p><p><span class="lbl">Detect</span>Slow starts on mobile data.</p><p><span class="lbl">Fix</span>Race the fetch against a 2–3 s timeout, then serve the bucket.</p></div>
-<div class="item"><h3><span class="num">5</span><span>Safari evicts storage</span></h3><p><span class="lbl">Breaks</span>In a Safari tab, WebKit deletes localStorage, the worker and its cache after 7 days of Safari use with no visit to the site. Home-screen apps have their own day counter.</p><p><span class="lbl">Detect</span>Streaks reset to zero.</p><p><span class="lbl">Fix</span>Play from the home-screen icon, where <code>navigator.storage.persist()</code> may also be granted.</p></div>
+<div class="item"><h3><span class="num">4</span><span>Weak signal</span></h3><p><span class="lbl">Breaks</span>Launch hangs on the network-first fetch. Two bars on the metro are worse than no signal: offline fails fast, a weak signal just waits.</p><p><span class="lbl">Detect</span>Slow starts on mobile data.</p><p><span class="lbl">Fix</span>Race the fetch against a 2–3 s timeout, then serve the bucket.</p></div>
+<div class="item"><h3><span class="num">5</span><span>Safari evicts storage</span></h3><p><span class="lbl">Breaks</span>In a Safari tab, WebKit deletes localStorage, the worker and its cache after 7 days of Safari use with no visit to the site. Home-screen apps have their own day counter.</p><p><span class="lbl">Detect</span>Your streak resets to zero for no visible reason.</p><p><span class="lbl">Fix</span>Play from the home-screen icon, where <code>navigator.storage.persist()</code> may also be granted.</p></div>
 </div>
 </section>
 
 <section class="sec" id="at-scale">
 <h2 class="sec-h">At scale</h2>
-<div class="prose"><p>With more releases or contributors, the manual file list and bump become the main source of bugs; a build-generated list with per-file hashes fixes that and stops re-downloading unchanged files. With much more code, save a small shell and let the background branch pick up the rest on first use. Once results must follow the user across devices, <code>localStorage</code> stops being the source of truth: you need accounts and sync, and offline writes become a queue to reconcile.</p></div>
+<div class="prose"><p>None of this matters at one developer and 15 files. With more releases or more people pushing, the hand-kept file list and the bump become the main source of bugs. Instead of a hand list, a build step generates it with a hash per file, which also stops re-downloading files that didn't change. With much more code, cache a small shell and let the background branch pick up the rest on first use. And once results have to follow you to another device, <code>localStorage</code> stops being the source of truth: you need accounts and sync, and offline writes become a queue you reconcile later.</p></div>
 </section>
 
 <section class="sec" id="check">
