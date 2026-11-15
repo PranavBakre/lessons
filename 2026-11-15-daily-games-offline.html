@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Daily Games works offline · Lessons</title>
+<meta name="description" content="How a hand-written service worker keeps a small PWA working with no network: the first visit, an offline launch, and a deploy, step by step.">
+<meta name="author" content="Pranav Bakre">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How Daily Games works offline">
+<meta property="og:description" content="How a hand-written service worker keeps a small PWA working with no network: the first visit, an offline launch, and a deploy, step by step.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23121212'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23f7f4ec' text-anchor='middle'%3EL%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #f7f4ec;
+    --card: #ffffff;
+    --ink: #121212;
+    --ink-2: #5c5a55;
+    --line: #d9d3c5;
+    --line-strong: #b4ac9b;
+    --line-soft: #ece7db;
+    --bad: #b8322a;
+    --on-ink: #ffffff;
+    --pict: #121212;
+    --board: #ffffff;
+
+    --zip: #fc8b5e;
+    --zip-ink: #c24d1c;
+    --zip-wash: #fde4d8;
+    --tango: #8fb6f5;
+    --tango-ink: #2c5bb5;
+    --tango-wash: #e2ecfd;
+    --sudoku: #8fcf86;
+    --sudoku-ink: #2f7d32;
+    --sudoku-wash: #e3f2df;
+
+    --accent: var(--ink);
+    --accent-ink: var(--ink);
+    --accent-wash: var(--line-soft);
+
+    --syn-k: #7a2e8e;
+    --syn-s: #a33a12;
+    --syn-n: #2c5bb5;
+    --syn-f: #1f5f8b;
+    --syn-c: #2f6b33;
+
+    --serif: ui-serif, 'New York', Georgia, 'Times New Roman', serif;
+    --sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+    --frame: 2px;
+    --border: 1.5px;
+    --radius-card: 6px;
+    --radius-pill: 999px;
+    --strip-h: 48px;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #161512;
+    --card: #201f1b;
+    --ink: #f1ede3;
+    --ink-2: #aaa598;
+    --line: #3f3b34;
+    --line-strong: #6b665b;
+    --line-soft: #2b2924;
+    --bad: #ff8a7e;
+    --on-ink: #161512;
+
+    --zip: #e8845a;
+    --zip-ink: #ffa07a;
+    --zip-wash: #43291d;
+    --tango: #84a8e6;
+    --tango-ink: #a3c1ff;
+    --tango-wash: #1d2a42;
+    --sudoku: #85c27c;
+    --sudoku-ink: #97d98e;
+    --sudoku-wash: #1f3420;
+
+    --syn-k: #e3a6f0;
+    --syn-s: #f4a784;
+    --syn-n: #a9c4fa;
+    --syn-f: #8ccaf0;
+    --syn-c: #a5d79f;
+  }
+  .accent-zip { --accent: var(--zip); --accent-ink: var(--zip-ink); --accent-wash: var(--zip-wash); }
+  .accent-tango { --accent: var(--tango); --accent-ink: var(--tango-ink); --accent-wash: var(--tango-wash); }
+  .accent-sudoku { --accent: var(--sudoku); --accent-ink: var(--sudoku-ink); --accent-wash: var(--sudoku-wash); }
+
+  * { box-sizing: border-box; }
+  html { background: var(--paper); scroll-behavior: smooth; scroll-padding-top: calc(var(--strip-h) + 20px); -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/28px var(--sans); -webkit-font-smoothing: antialiased; font-synthesis-weight: none; }
+  h1, h2, h3, h4, p, ul, ol, figure { margin: 0; }
+  a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  code, pre { font-family: var(--mono); font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
+  code { font-size: 14px; padding: 1px 5px; border-radius: 4px; background: var(--line-soft); overflow-wrap: anywhere; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button:focus-visible, summary:focus-visible, a:focus-visible { outline: var(--frame) solid var(--ink); outline-offset: 2px; }
+
+  .pill { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 14px; border: var(--border) solid var(--ink); border-radius: var(--radius-pill); font: 600 14px/1 var(--sans); color: var(--ink); white-space: nowrap; }
+  .pill:hover { background: var(--line-soft); }
+  .pill.solid { background: var(--ink); color: var(--on-ink); }
+
+  .strip { position: sticky; top: 0; z-index: 20; height: var(--strip-h); background: var(--paper); border-bottom: 1px solid var(--ink); }
+  .strip-in { display: flex; align-items: center; gap: 24px; max-width: 1000px; height: 100%; margin: 0 auto; padding: 0 24px; }
+  .strip-name { font: 700 19px/1 var(--serif); color: var(--ink); text-decoration: none; white-space: nowrap; }
+  .strip nav { display: flex; gap: 20px; min-width: 0; }
+  .strip nav a { font: 500 14px/20px var(--sans); text-decoration: none; padding: 4px 0; border-bottom: var(--frame) solid transparent; white-space: nowrap; }
+  .strip nav a:hover, .strip nav a.on { border-bottom-color: var(--ink); }
+  .strip .pill { margin-left: auto; }
+
+  .page { max-width: 760px; margin: 0 auto; padding: 0 24px 72px; }
+
+  .mast { padding: 40px 0 0; text-align: center; }
+  .mast h1 { font: 700 50px/56px var(--serif); letter-spacing: -0.01em; text-wrap: balance; }
+  .dek { margin: 12px 0 20px; font: 400 21px/28px var(--serif); text-wrap: balance; }
+  .dateline { padding: 8px 0; border-top: 1px solid var(--ink); border-bottom: var(--frame) solid var(--ink); font: 500 15px/24px var(--sans); }
+  .lede { margin-top: 28px; }
+  .lede p + p { margin-top: 12px; }
+  .meta { color: var(--ink-2); font: 400 14px/22px var(--sans); }
+  .lede .meta { margin-top: 16px; }
+
+  .sec { margin-top: 64px; }
+  .sec-h { padding-bottom: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--ink); font: 700 30px/36px var(--serif); }
+  .prose p, .prose ul, .prose ol { margin-bottom: 16px; }
+  .prose ul { padding-left: 22px; }
+  .prose > :last-child { margin-bottom: 0; }
+
+  .events { list-style: none; margin: 32px 0 0; padding: 0; counter-reset: ev; }
+  .event + .event { margin-top: 64px; }
+  .ev-head { display: flex; min-height: 132px; margin-bottom: 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); overflow: hidden; }
+  .ev-block { flex: none; width: 124px; display: grid; place-items: center; background: var(--accent); }
+  .ev-block svg { width: 56px; height: 56px; color: var(--pict); }
+  .ev-title { flex: 1; min-width: 0; padding: 18px 24px 16px; display: flex; flex-direction: column; }
+  .ev-title h3 { font: 700 30px/36px var(--serif); }
+  .ev-title .one { margin-top: 4px; }
+  .ev-title .meta { margin-top: auto; padding-top: 10px; }
+
+  .code { margin: 4px 0 20px; }
+  .code-cap { margin-bottom: 6px; color: var(--ink-2); font: 500 14px/20px var(--sans); }
+  .code pre { margin: 0; padding: 12px 0; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); font: 400 14px/24px var(--mono); color: var(--ink); overflow-x: auto; }
+  .code pre > span.wrap { display: inline-block; min-width: 100%; }
+  .l { display: block; padding: 0 16px 0 14px; border-left: 3px solid transparent; white-space: pre; }
+  .l.hl { border-left-color: var(--accent-ink); background: var(--accent-wash); }
+  .note { margin: -8px 0 20px; }
+  .syn-k { color: var(--syn-k); font-weight: 700; }
+  .syn-s { color: var(--syn-s); }
+  .syn-n { color: var(--syn-n); }
+  .syn-f { color: var(--syn-f); }
+  .syn-c { color: var(--syn-c); }
+
+  .board { margin: 28px 0 0; border: var(--frame) solid var(--ink); background: var(--card); }
+  .board-top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .board-top b { font: 700 18px/26px var(--serif); }
+  .board-top .meta { text-align: right; }
+  .board-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
+  .board-list { border-right: 1px solid var(--line); }
+  .board-stage { align-self: start; position: sticky; top: calc(var(--strip-h) + 12px); background: var(--card); }
+  .board-stage svg { display: block; width: 100%; height: auto; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .step + .step { border-top: 1px solid var(--line); }
+  .step-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 16px; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 14px 10px 12px; text-align: left; font: 500 15px/22px var(--sans); }
+  .step-row:hover { background: var(--line-soft); }
+  .step-row .n { display: grid; place-items: center; width: 26px; height: 26px; border: var(--border) solid var(--ink); border-radius: 50%; font: 600 13px/1 var(--sans); font-variant-numeric: tabular-nums; }
+  .step-row .x { width: 14px; height: 14px; color: var(--bad); }
+  .step.on { background: var(--accent-wash); }
+  .step.on .step-row { font-weight: 600; }
+  .step.on .step-row:hover { background: transparent; }
+  .step.on .n { background: var(--ink); color: var(--on-ink); }
+  .step-row:focus-visible { outline-offset: -3px; }
+  .step-more { display: none; padding: 0 16px 14px 50px; }
+  .step.on .step-more { display: block; }
+  .step-more .meta { margin-bottom: 2px; }
+
+  .edge { stroke: var(--line-strong); stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .edge.bypass { stroke-dasharray: 2 5; }
+  .edge.hot { stroke: var(--c); stroke-width: 2.5; }
+  .node .frame { fill: var(--card); stroke: var(--ink); stroke-width: 1.5; }
+  .node.off .frame { stroke: var(--line-strong); stroke-dasharray: 4 3; }
+  .node.off .nname { fill: var(--ink-2); }
+  .node.focus .frame { stroke: var(--accent-ink); stroke-width: 3; }
+  .store .frame { stroke-width: 2; }
+  .nname { font: 700 13px var(--mono); fill: var(--ink); }
+  .ntitle { font: 600 13px var(--sans); fill: var(--ink); }
+  .nsub { font: 400 12px var(--sans); fill: var(--ink-2); }
+  .nsub.bad { fill: var(--bad); }
+  .blabel { font: 400 12px var(--mono); fill: var(--ink); }
+  .bcount { font: 400 12px var(--mono); fill: var(--ink-2); text-anchor: end; }
+  .cell { fill: var(--card); stroke: var(--line); stroke-width: 1; }
+  .cell.on { fill: var(--accent); }
+  .row-frame { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+  .bucket.dim .blabel { fill: var(--ink-2); }
+  .bucket.dim .row-frame { stroke: var(--line-strong); stroke-dasharray: 4 3; }
+  .dot { fill: var(--c); }
+  .dot-ring { fill: none; stroke: var(--card); stroke-width: 2; }
+
+  .qs { margin-top: 28px; }
+  .qs-h { padding-bottom: 6px; border-bottom: 1px solid var(--ink); font: 700 20px/28px var(--serif); }
+  details.q { border-bottom: 1px solid var(--line); }
+  details.q summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; list-style: none; cursor: pointer; font: 600 16px/24px var(--sans); }
+  details.q summary::-webkit-details-marker { display: none; }
+  details.q summary::after { content: "+"; flex: none; display: grid; place-items: center; width: 26px; height: 26px; border: var(--border) solid var(--ink); border-radius: 50%; font: 500 18px/1 var(--sans); }
+  details.q[open] summary::after { content: "\2212"; background: var(--ink); color: var(--on-ink); }
+  details.q summary:hover { text-decoration: underline; text-underline-offset: 4px; }
+  details.q > div { padding: 0 40px 16px 0; }
+
+  .box { border: var(--frame) solid var(--ink); background: var(--card); }
+  .box-cols { columns: 2; column-gap: 0; column-rule: 1px solid var(--line); }
+  .item { break-inside: avoid; padding: 18px 20px 20px; }
+  .item + .item { border-top: 1px solid var(--line); }
+  .item h3 { display: flex; gap: 10px; margin-bottom: 8px; font: 700 20px/26px var(--serif); }
+  .item h3 .num { flex: none; min-width: 16px; }
+  .item h3 code { font-size: 15px; font-weight: 400; }
+  .item p + p { margin-top: 8px; }
+  .item .lbl { font-weight: 700; margin-right: 4px; }
+  .box.fail .item h3 .num { color: var(--bad); }
+
+  .try { list-style: none; margin: 0; padding: 0; counter-reset: t; }
+  .try li { display: grid; grid-template-columns: 40px minmax(0, 1fr); padding: 12px 0; border-bottom: 1px solid var(--line); counter-increment: t; }
+  .try li:first-child { padding-top: 0; }
+  .try li::before { content: counter(t); font: 700 22px/28px var(--serif); }
+
+  .nexts { display: grid; gap: 12px; }
+  .next { display: flex; align-items: center; gap: 20px; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); }
+  .next > div { flex: 1; min-width: 0; }
+  .next h3 { font: 700 20px/26px var(--serif); }
+  .next p { margin-top: 2px; }
+  .copy { min-width: 88px; }
+  .copy[data-copied] { background: var(--ink); color: var(--on-ink); }
+
+  .sources { margin: 0; padding-left: 22px; }
+  .sources li + li { margin-top: 6px; }
+
+  .next-note { margin: -8px 0 16px; }
+  .code-cap a { color: inherit; text-underline-offset: 3px; }
+  .colophon { margin-top: 56px; padding-top: 12px; border-top: var(--frame) solid var(--ink); text-align: center; }
+
+
+  .toc { display: none; }
+  @media (min-width: 1320px) {
+    .strip nav { display: none; }
+    .strip-in { max-width: none; padding: 0 max(24px, calc(50% - 648px)); }
+    .toc { display: block; position: fixed; top: calc(var(--strip-h) + 40px); left: max(24px, calc(50% - 380px - 268px)); width: 220px; max-height: calc(100vh - var(--strip-h) - 64px); overflow-y: auto; }
+    .toc-h { margin: 0 0 8px; padding-bottom: 8px; border-bottom: var(--frame) solid var(--ink); font: 700 19px/24px var(--serif); color: var(--ink); }
+    .toc ol { list-style: none; margin: 0; padding: 0; }
+    .toc a { display: flex; align-items: center; gap: 10px; padding: 6px 0 6px 12px; border-left: var(--frame) solid transparent; font: 400 14px/20px var(--sans); color: var(--ink-2); text-decoration: none; }
+    .toc a:hover { color: var(--ink); }
+    .toc a.on { border-left-color: var(--ink); color: var(--ink); font-weight: 600; }
+    .toc .sub a { padding-left: 24px; }
+    .toc .sw { flex: none; width: 10px; height: 10px; border: 1px solid var(--ink); }
+  }
+  @media (max-width: 860px) {
+    .strip nav { display: none; }
+  }
+  @media (max-width: 700px) {
+    :root { --strip-h: 44px; }
+    .strip-in, .page { padding-left: 16px; padding-right: 16px; }
+    .mast { padding-top: 28px; }
+    .mast h1 { font-size: 36px; line-height: 42px; }
+    .dek { font-size: 19px; line-height: 26px; }
+    .sec { margin-top: 52px; }
+    .sec-h { font-size: 26px; line-height: 32px; }
+    .ev-head { min-height: 0; }
+    .ev-block { width: 76px; }
+    .ev-block svg { width: 44px; height: 44px; }
+    .ev-title { padding: 14px 16px; }
+    .ev-title h3 { font-size: 24px; line-height: 30px; }
+    .board { margin-left: -16px; margin-right: -16px; border-left: 0; border-right: 0; }
+    .board-body { grid-template-columns: minmax(0, 1fr); }
+    .board-stage { grid-row: 1; top: var(--strip-h); z-index: 2; border-bottom: 1px solid var(--line); }
+    .board-stage svg { max-width: 360px; margin: 0 auto; }
+    .board-list { border-right: 0; }
+    .board-top { flex-direction: column; gap: 0; }
+    .board-top .meta { text-align: left; }
+    .box-cols { columns: 1; }
+    .next { flex-direction: column; align-items: flex-start; gap: 12px; }
+    details.q > div { padding-right: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+</style>
+<script>
+  document.documentElement.dataset.theme = localStorage.getItem('lesson-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+</script>
+</head>
+<body>
+<header class="strip">
+  <div class="strip-in">
+    <a class="strip-name" href="./index.html">Lessons</a>
+    <nav aria-label="Sections">
+      <a href="#events">The three events</a>
+      <a href="#trade-offs">Trade-offs</a>
+      <a href="#failure-modes">Failure modes</a>
+      <a href="#try-it">Try it</a>
+      <a href="#next">Next</a>
+      <a href="#sources">Sources</a>
+    </nav>
+    <button class="pill theme-toggle" type="button"></button>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <p class="toc-h">Contents</p>
+  <ol>
+    <li><a href="#tldr">In short</a></li>
+    <li><a href="#events">The three events</a>
+      <ol class="sub">
+        <li><a href="#first-visit"><i class="sw" style="background: var(--zip)"></i>First visit</a></li>
+        <li><a href="#offline-visit"><i class="sw" style="background: var(--tango)"></i>Offline launch</a></li>
+        <li><a href="#after-a-deploy"><i class="sw" style="background: var(--sudoku)"></i>After a deploy</a></li>
+      </ol>
+    </li>
+    <li><a href="#trade-offs">Trade-offs</a></li>
+    <li><a href="#failure-modes">Failure modes</a></li>
+    <li><a href="#at-scale">At scale</a></li>
+    <li><a href="#check">Check yourself</a></li>
+    <li><a href="#try-it">Try it</a></li>
+    <li><a href="#next">Next</a></li>
+    <li><a href="#sources">Sources</a></li>
+  </ol>
+</nav>
+
+<main class="page" id="top">
+<header class="mast">
+  <h1>How Daily Games works offline</h1>
+  <p class="dek">How the PWA keeps working with no network</p>
+  <p class="dateline">By Pranav Bakre · Sunday, 15 November 2026<span class="edition"></span></p>
+</header>
+
+<section class="lede" id="tldr" aria-label="In short">
+  <p><code>sw.js</code> is a reverse proxy on the phone. On the first visit it saves the app's 15 files into a bucket named <code>daily-games-v6</code>. After that, page loads try the network and fall back to the saved page; every other file comes from the bucket at once and is refreshed in the background. A release reaches phones as a set only when <code>VERSION</code> changes, which swaps in a new proxy with a new bucket and deletes the old one.</p>
+  <p class="meta">8 min read · 3 events, 25 steps to click, 7 questions</p>
+</section>
+
+<section class="sec" id="events">
+<h2 class="sec-h">The three events</h2>
+<div class="prose">
+<p>Read <code>sw.js</code> as an nginx in front of the app. Three differences matter, and each shows up below:</p>
+<ul>
+<li>it only exists after the first visit;</li>
+<li>the browser starts it per request and may stop it once a response is sent;</li>
+<li>the browser, not you, decides when a new version replaces it.</li>
+</ul>
+</div>
+
+<ol class="events">
+
+<li class="event accent-zip" id="first-visit">
+<header class="ev-head">
+  <div class="ev-block" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="38" height="38" style="fill: var(--board)"/><path d="M17.7 5v38M30.3 5v38M5 17.7h38M5 30.3h38" stroke-width="1"/><rect x="5" y="30.3" width="38" height="12.7" fill="currentColor" stroke="none"/><path d="M24 9.5v15" stroke-width="4.5" stroke-linecap="round"/><path d="M17.5 19 24 25.5 30.5 19" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div class="ev-title">
+    <h3>First visit: online, no proxy yet</h3>
+    <p class="one">Online, no proxy yet.</p>
+    <p class="meta">No. 1 · 7 steps · 3 questions</p>
+  </div>
+</header>
+<div class="prose">
+<p>The page loads straight from GitHub Pages. After <code>load</code>, it registers the proxy, so the install doesn't compete with the first render.</p>
+</div>
+<div class="code"><p class="code-cap"><a href="https://github.com/PranavBakre/daily-games/blob/b4f6ba2c0466be796ba285412f14428357646a7e/js/app.js#L579">js/app.js · line 579</a></p><pre><span class="wrap"><span class="l hl">navigator.serviceWorker.register('./sw.js')</span></span></pre></div>
+<div class="prose">
+<p>The proxy's <code>install</code> handler downloads the 15 files into the bucket. If any one comes back non-2xx, the install fails and the browser retries on a later visit.</p>
+</div>
+<div class="code"><p class="code-cap"><a href="https://github.com/PranavBakre/daily-games/blob/b4f6ba2c0466be796ba285412f14428357646a7e/sw.js#L30-L32">sw.js · lines 30–32</a></p><pre><span class="wrap"><span class="l hl">const cache = await caches.open(CACHE);  // 'daily-games-v6'</span><span class="l hl">await cache.addAll(ASSETS);  // 15 files, all or nothing</span><span class="l">await self.skipWaiting();</span></span></pre></div>
+<figure class="board" data-start="first" aria-label="Steps of the first visit: no proxy yet, then register, install and fill the v6 bucket."></figure>
+<div class="qs">
+<h4 class="qs-h">Questions you'd ask</h4>
+<details class="q"><summary>How big is it?</summary><div><p>About 30 KB over the wire, gzipped: about 100 KB of source plus 15 KB of icons. Zip is the biggest game at 6.2 KB gzipped.</p></div></details>
+<details class="q"><summary>Why not just rely on the HTTP cache?</summary><div><p>GitHub Pages fixes it at <code>max-age=600</code> and offers no way to change headers, and the app can't see or control what the HTTP cache keeps. The bucket is the part you control.</p></div></details>
+<details class="q"><summary>Isn't the index page listed twice?</summary><div><p>Yes. <code>ASSETS</code> lists both <code>'./'</code> and <code>'./index.html'</code> (<code>sw.js:8–9</code>). Only <code>index.html</code> is ever read back (<code>sw.js:64</code>), so the <code>'./'</code> entry is about 1 KB that's never used.</p></div></details>
+</div>
+</li>
+
+<li class="event accent-tango" id="offline-visit">
+<header class="ev-head">
+  <div class="ev-block" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="38" height="38" style="fill: var(--board)"/><path d="M24 5v38M5 24h38" stroke-width="1"/><path d="M11 21.5a18 18 0 0 1 26 0M15.5 26.5a11.5 11.5 0 0 1 17 0" stroke-width="3.6" stroke-linecap="round"/><circle cx="24" cy="32.5" r="3.4" fill="currentColor" stroke="none"/><path d="M10.5 10.5l27 27" style="stroke: var(--board)" stroke-width="7.5"/><path d="M10.5 10.5l27 27" stroke-width="3.6" stroke-linecap="round"/></svg></div>
+  <div class="ev-title">
+    <h3>Second visit, offline</h3>
+    <p class="one">Second visit, offline, from the home-screen icon.</p>
+    <p class="meta">No. 2 · 10 steps · 2 questions</p>
+  </div>
+</header>
+<div class="prose">
+<p>Now every request from the page goes through the proxy. Non-GET and cross-site requests pass straight to the network (<code>sw.js:49–52</code>). The rest are routed on one question: is this a page load?</p>
+<p>Offline, the page fetch fails immediately and the saved <code>index.html</code> is served. Every screen is a <code>#</code> route, so that one page covers them all. JS, CSS and icons come from the bucket. Today's puzzle is generated from the date, and streaks come from <code>localStorage['daily-games:v1']</code> (<code>js/storage.js:3</code>).</p>
+</div>
+<div class="code"><p class="code-cap"><a href="https://github.com/PranavBakre/daily-games/blob/b4f6ba2c0466be796ba285412f14428357646a7e/sw.js#L55-L83">sw.js · lines 55–83, trimmed</a></p><pre><span class="wrap"><span class="l hl">if (request.mode === 'navigate') {</span><span class="l">  try { fresh = await fetch(request); cache.put(INDEX, …) }</span><span class="l hl">  catch { return caches.match(INDEX) }  // offline</span><span class="l hl">if (cached) { fetch(request).then(…); return cached }</span></span></pre></div>
+<p class="note meta">A bar marks the lines the text cites. The rest of 55–83 is trimmed, and … marks code cut from a line.</p>
+<figure class="board" data-start="offline" aria-label="Steps of an offline launch: the network fetch fails and the saved page is served."></figure>
+<div class="qs">
+<h4 class="qs-h">Questions you'd ask</h4>
+<details class="q"><summary>Does it survive a weak signal?</summary><div><p>Not well. Offline, <code>fetch</code> fails fast. On a weak signal it hangs, and nothing times it out, so the app waits for the network before showing the saved page.</p></div></details>
+<details class="q"><summary>Do the background refreshes always finish?</summary><div><p>No. They aren't wrapped in <code>event.waitUntil</code>, and the browser may stop the proxy once the cached response is sent. Nothing breaks; the bucket just updates less often than it looks.</p></div></details>
+</div>
+</li>
+
+<li class="event accent-sudoku" id="after-a-deploy">
+<header class="ev-head">
+  <div class="ev-block" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="38" height="38" style="fill: var(--board)"/><path d="M24 5v38" stroke-width="1"/><g fill="currentColor" stroke="none" font-family="Georgia, serif" font-weight="700" font-size="12" text-anchor="middle"><text x="14.5" y="28.5">v6</text><text x="33.5" y="28.5">v7</text></g><path d="M8.5 36 20.5 12" stroke-width="2.6" stroke-linecap="round"/><path d="M27.5 36h12" stroke-width="3" stroke-linecap="round"/></svg></div>
+  <div class="ev-title">
+    <h3>After a deploy</h3>
+    <p class="one"><code>VERSION</code> changed from 'v6' to 'v7'.</p>
+    <p class="meta">No. 3 · 8 steps · 2 questions</p>
+  </div>
+</header>
+<div class="prose">
+<p>On the next page load, the browser re-downloads <code>sw.js</code>, skipping the HTTP cache for this one file, and compares bytes. Changing <code>'v6'</code> to <code>'v7'</code> is the byte change. The new proxy installs next to the running one and fills <code>daily-games-v7</code>; <code>skipWaiting()</code> lets it take over without waiting for open tabs to close. On <code>activate</code> it deletes every other bucket and claims the open tabs.</p>
+</div>
+<div class="code"><p class="code-cap"><a href="https://github.com/PranavBakre/daily-games/blob/b4f6ba2c0466be796ba285412f14428357646a7e/sw.js#L41-L42">sw.js · lines 41–42</a></p><pre><span class="wrap"><span class="l hl">keys.filter(… !== CACHE).map(… caches.delete(key));  // drop v6</span><span class="l hl">await self.clients.claim();</span></span></pre></div>
+<figure class="board" data-start="deploy" aria-label="Steps of a deploy: v7 installs beside v6, takes over, and v6 is deleted."></figure>
+<div class="qs">
+<h4 class="qs-h">Questions you'd ask</h4>
+<details class="q"><summary>Don't old service workers pile up?</summary><div><p>No. A site holds at most one worker in each of three slots: installing, waiting and active. Once the new one activates, the old one is discarded; ship v8 while v7 is still waiting and v7 is discarded too. What would pile up is the buckets: discarding a worker doesn't delete its bucket, so without the <code>caches.delete</code> line every release would leave its 15 files behind. At any moment there are at most two buckets.</p></div></details>
+<details class="q"><summary>Aren't the bump and the background refresh redundant?</summary><div><p>No. The background refresh drifts single files toward the latest, one visit late. The bump replaces all 15 at once as a consistent set. Without a bump, a returning visit gets the new <code>index.html</code> (network first) with the old JS (bucket first), and they only line up a visit later.</p></div></details>
+</div>
+</li>
+
+</ol>
+</section>
+
+<section class="sec" id="trade-offs">
+<h2 class="sec-h">Trade-offs</h2>
+<div class="box box-cols">
+<div class="item"><h3><span class="num">1</span><span>Hand-written proxy, 95 lines</span></h3><p><span class="lbl">Instead of</span>Workbox, the standard: a build step generates the file list with a hash per file, and only changed files are re-downloaded.</p><p><span class="lbl">This costs</span>The file list and the version bump are manual.</p><p><span class="lbl">Workbox costs</span>A build step and a dependency in a repo with neither. Worth it once a forgotten bump costs more than adding the build.</p></div>
+<div class="item"><h3><span class="num">2</span><span>Network first for page loads</span></h3><p><span class="lbl">Instead of</span>Bucket first for page loads too.</p><p><span class="lbl">This costs</span>A weak signal stalls the launch.</p><p><span class="lbl">Bucket first costs</span>Every release shows one load late.</p></div>
+<div class="item"><h3><span class="num">3</span><span>Bucket first, background refresh, for files</span></h3><p><span class="lbl">Instead of</span>Bucket only, updated by version bumps.</p><p><span class="lbl">This costs</span>Files can mismatch the page for one visit.</p><p><span class="lbl">Bucket only costs</span>Never fresher than the last bump.</p></div>
+<div class="item"><h3><span class="num">4</span><span><code>skipWaiting</code> + <code>clients.claim</code></span></h3><p><span class="lbl">Instead of</span>Let the new version wait and show "Update ready, reload".</p><p><span class="lbl">This costs</span>An open tab switches buckets mid-game.</p><p><span class="lbl">Waiting costs</span>Update UI, and users who actually reload.</p></div>
+<div class="item"><h3><span class="num">5</span><span><code>localStorage</code></span></h3><p><span class="lbl">Instead of</span>IndexedDB.</p><p><span class="lbl">This costs</span>Synchronous and small; fine for one JSON blob written at most every 250 ms.</p><p><span class="lbl">IndexedDB costs</span>An async API; worth it for many records or blobs.</p></div>
+</div>
+</section>
+
+<section class="sec" id="failure-modes">
+<h2 class="sec-h">Failure modes</h2>
+<div class="box box-cols fail">
+<div class="item"><h3><span class="num">1</span><span>An error page replaces the saved page</span></h3><p><span class="lbl">Breaks</span>The page-load branch saves any response without checking <code>ok</code> (<code>sw.js:59–61</code>). A mistyped URL under <code>/daily-games/</code> saves GitHub's 404 as the app.</p><p><span class="lbl">Detect</span>Launching offline shows a 404.</p><p><span class="lbl">Fix</span>Only save when <code>fresh.ok</code>.</p></div>
+<div class="item"><h3><span class="num">2</span><span>New bucket filled from the HTTP cache</span></h3><p><span class="lbl">Breaks</span><code>addAll</code> uses normal fetches and Pages sends <code>max-age=600</code>. Within 10 minutes of a visit, the v7 bucket can hold v6 files.</p><p><span class="lbl">Detect</span>New bucket name, old file contents.</p><p><span class="lbl">Fix</span>Fetch with <code>new Request(url, {cache: 'reload'})</code> in <code>install</code>.</p></div>
+<div class="item"><h3><span class="num">3</span><span>Changed a file, forgot the bump</span></h3><p><span class="lbl">Breaks</span>Page and JS from different releases for one visit.</p><p><span class="lbl">Detect</span>DevTools → Application → Cache Storage still shows the old bucket name.</p><p><span class="lbl">Fix</span>Bump on every change, or let a build step hash the files.</p></div>
+<div class="item"><h3><span class="num">4</span><span>Weak signal</span></h3><p><span class="lbl">Breaks</span>Launch hangs on the network-first fetch.</p><p><span class="lbl">Detect</span>Slow starts on mobile data.</p><p><span class="lbl">Fix</span>Race the fetch against a 2–3 s timeout, then serve the bucket.</p></div>
+<div class="item"><h3><span class="num">5</span><span>Safari evicts storage</span></h3><p><span class="lbl">Breaks</span>In a Safari tab, WebKit deletes localStorage, the worker and its cache after 7 days of Safari use with no visit to the site. Home-screen apps have their own day counter.</p><p><span class="lbl">Detect</span>Streaks reset to zero.</p><p><span class="lbl">Fix</span>Play from the home-screen icon, where <code>navigator.storage.persist()</code> may also be granted.</p></div>
+</div>
+</section>
+
+<section class="sec" id="at-scale">
+<h2 class="sec-h">At scale</h2>
+<div class="prose"><p>With more releases or contributors, the manual file list and bump become the main source of bugs; a build-generated list with per-file hashes fixes that and stops re-downloading unchanged files. With much more code, save a small shell and let the background branch pick up the rest on first use. Once results must follow the user across devices, <code>localStorage</code> stops being the source of truth: you need accounts and sync, and offline writes become a queue to reconcile.</p></div>
+</section>
+
+<section class="sec" id="check">
+<h2 class="sec-h">Check yourself</h2>
+<details class="q"><summary>You deploy v7 while someone has had the app open for three days without reloading. When do they get v7?</summary><div><p>On their next page load. Update checks run on page loads, and switching <code>#</code> routes isn't one, so the open tab never fetches the new <code>sw.js</code>. (From web.dev's description of update checks; not tested on this app.)</p></div></details>
+<details class="q"><summary>You add a "share your time" button that POSTs to a Cloudflare Worker. A user taps it with no signal. What does the proxy do?</summary><div><p>Nothing. It passes non-GET and cross-site requests straight through (<code>sw.js:49–52</code>), so the request fails like on any site and the share is lost unless the page queues it.</p></div></details>
+</section>
+
+<section class="sec" id="try-it">
+<h2 class="sec-h">Try it</h2>
+<ol class="try">
+<li><span>Desktop Chrome, live site, DevTools → Application → Service workers: <code>sw.js</code> is activated, and Cache Storage shows <code>daily-games-v6</code> with 15 entries.</span></li>
+<li><span>Network → Offline → reload. Requests show "(ServiceWorker)" as their source and the app still plays.</span></li>
+<li><span>Network → "Slow 3G" instead, then reload: the page waits on the network-first fetch.</span></li>
+<li><span>Locally, set <code>VERSION</code> to <code>'v7'</code>, serve the folder and reload once: <code>daily-games-v6</code> disappears and <code>daily-games-v7</code> appears without closing the tab.</span></li>
+</ol>
+</section>
+
+<section class="sec" id="next">
+<h2 class="sec-h">Next</h2>
+
+<div class="nexts">
+<div class="next"><div><h3>Workbox precaching and revisioned assets</h3><p>The hand-written file list and version bump are what Workbox generates for you.</p></div></div>
+<div class="next"><div><h3>HTTP caching headers and Cache-Control</h3><p>Pages sends max-age=600, which is why a new bucket can fill from the HTTP cache.</p></div></div>
+<div class="next"><div><h3>Background Sync and periodic sync</h3><p>A tap with no signal is lost unless the page queues it; this is that queue.</p></div></div>
+</div>
+</section>
+
+<section class="sec" id="sources">
+<h2 class="sec-h">Sources</h2>
+<ul class="sources">
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers">MDN: Using Service Workers</a>: install, waiting, skipWaiting</li>
+<li><a href="https://web.dev/articles/service-worker-lifecycle">web.dev: The service worker lifecycle</a>: side-by-side install, update checks, clients.claim</li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerContainer/register">MDN: register() and updateViaCache</a>: main script skips the HTTP cache</li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Cache/addAll">MDN: Cache.addAll</a>: rejects on non-2xx</li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/ExtendableEvent/waitUntil">MDN: ExtendableEvent.waitUntil</a>: keeping the worker alive for background work</li>
+<li><a href="https://fetch.spec.whatwg.org/#concept-request-cache-mode">Fetch spec: request cache mode</a>: default uses the HTTP cache; <code>reload</code> skips it</li>
+<li><a href="https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/">WebKit: 7-day cap on script-writable storage</a></li>
+<li><a href="https://webkit.org/blog/14403/updates-to-storage-policy/">WebKit: 2023 storage policy</a></li>
+<li>GitHub Pages headers via <code>curl -I</code>, 15 Nov 2026: <code>cache-control: max-age=600</code></li>
+</ul>
+</section>
+
+<p class="colophon meta">Written against <a href="https://github.com/PranavBakre/daily-games/tree/b4f6ba2c0466be796ba285412f14428357646a7e">daily-games at sw.js v6</a>. <a href="./index.html">All lessons</a></p>
+</main>
+
+<script>
+  const SIM = {
+    nodes: [{ id: 'page', name: 'page' }, { id: 'sw', name: 'sw.js' }, { id: 'net', name: 'network' }],
+    store: { id: 'cache', name: 'Cache Storage', under: 'sw', slots: 15, rows: [{ id: 'v6', label: 'daily-games-v6' }, { id: 'v7', label: 'daily-games-v7' }] },
+    bypass: ['page', 'net'],
+    init: { sub: { page: 'browser tab', sw: 'v6', net: 'online' }, off: {}, bad: {}, fill: { v6: 15, v7: 0 }, dim: {} },
+    scenarios: {
+      first: {
+        label: 'First visit',
+        init: { sub: { sw: 'not installed' }, off: { sw: true }, fill: { v6: 0 }, dim: { v7: true } },
+        steps: [
+          { path: ['page', 'bypass', 'net'], kind: 'req', short: '`GET /daily-games/`', cap: 'There is no proxy yet, so the request goes straight to GitHub Pages.' },
+          { path: ['net', 'bypass', 'page'], kind: 'res', short: 'Page from the network', cap: 'The page renders. After `load`, it registers the proxy.' },
+          { path: ['page', 'sw'], kind: 'req', patch: { off: { sw: false }, sub: { sw: 'installing' } }, short: "`register('./sw.js')`", cap: 'app.js:579. The browser downloads sw.js and starts its install.' },
+          { path: ['sw', 'net'], kind: 'req', short: 'install: fetch 15 files', cap: 'The install handler requests every file in `ASSETS`.' },
+          { path: ['net', 'sw'], kind: 'res', short: '15 files back', cap: 'One non-2xx and the install fails; the browser retries on a later visit.' },
+          { path: ['sw', 'cache'], kind: 'req', patch: { fill: { v6: 15 } }, short: '`cache.addAll` → v6', cap: '`daily-games-v6` is filled, all or nothing.' },
+          { path: [], patch: { sub: { sw: 'v6' } }, focus: 'sw', short: '`skipWaiting()`: active', cap: 'The proxy is active. Later page loads go through it.' },
+        ],
+      },
+      offline: {
+        label: 'Offline launch',
+        init: { sub: { net: 'offline' }, bad: { net: true }, dim: { v7: true } },
+        steps: [
+          { path: ['page', 'sw'], kind: 'req', short: 'navigate `/daily-games/`', cap: 'The proxy takes the page load.' },
+          { path: ['sw', 'net'], kind: 'req', short: 'Fetch the page', cap: 'Network first: the proxy tries GitHub Pages before the bucket.' },
+          { path: ['net', 'sw'], kind: 'fail', short: 'Fetch fails, offline', cap: 'With no connection the fetch rejects at once, so there is no wait.' },
+          { path: ['sw', 'cache'], kind: 'req', short: 'Match `index.html`', cap: 'The `catch` branch looks up the saved page in `daily-games-v6`.' },
+          { path: ['cache', 'sw', 'page'], kind: 'res', short: 'Saved page', cap: 'The saved `index.html` goes back to the page.' },
+          { path: ['page', 'sw'], kind: 'req', short: 'GET app.js, styles.css, games', cap: 'The page asks for its scripts, styles and the game files.' },
+          { path: ['sw', 'cache'], kind: 'req', short: 'Match each file', cap: 'Bucket first: every file is answered from `daily-games-v6`.' },
+          { path: ['cache', 'sw', 'page'], kind: 'res', short: 'Saved files', cap: 'They come back at once, with no network wait.' },
+          { path: ['sw', 'net'], kind: 'fail', short: 'Background refresh fails', cap: 'The refresh behind each file fails quietly; the bucket keeps the old copy.' },
+          { path: [], focus: 'page', short: "Build today's puzzle", cap: "The page reads `localStorage['daily-games:v1']` and builds today's puzzle." },
+        ],
+      },
+      deploy: {
+        label: 'After a deploy',
+        init: {},
+        steps: [
+          { path: ['sw', 'net'], kind: 'req', short: 'Re-fetch sw.js', cap: 'On the next page load the browser re-fetches sw.js, skipping the HTTP cache.' },
+          { path: ['net', 'sw'], kind: 'res', patch: { sub: { sw: 'v6 + v7' } }, short: 'Bytes differ: v7 installs', cap: "'v6' became 'v7', so the new proxy installs next to the running one." },
+          { path: ['sw', 'net'], kind: 'req', short: 'install: fetch 15 files', cap: 'The v7 install requests every file in `ASSETS` again.' },
+          { path: ['net', 'sw'], kind: 'res', short: '15 files back', cap: 'All 15 must be 2xx, as on the first visit.' },
+          { path: ['sw', 'cache'], kind: 'req', patch: { fill: { v7: 15 } }, short: '`cache.addAll` → v7', cap: '`daily-games-v7` is filled beside v6.' },
+          { path: [], patch: { sub: { sw: 'v7' } }, focus: 'sw', short: '`skipWaiting()`: v7 active', cap: 'v7 takes over without waiting for open tabs to close.' },
+          { path: ['sw', 'cache'], kind: 'del', patch: { fill: { v6: 0 } }, short: 'Delete v6', cap: 'activate runs `caches.delete` on every bucket that is not `daily-games-v7`.' },
+          { path: ['sw', 'page'], kind: 'res', short: '`clients.claim()`', cap: 'Open tabs are now served by v7.' },
+        ],
+      },
+    },
+  };
+</script>
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svgEl = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.append(e);
+    return e;
+  };
+  const { nodes: NODES, store: STORE, bypass: BYPASS, scenarios: SCENARIOS } = SIM;
+  const NAMES = Object.fromEntries([...NODES, STORE].map((n) => [n.id, n.name]));
+  const FAIL_ICON = '<svg class="x" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+
+  const W = 340, NW = 92, NH = 52, NY = 16;
+  const L = {};
+  NODES.forEach((n, i) => { L[n.id] = [16 + NW / 2 + i * ((W - 32 - NW) / (NODES.length - 1)), NY + NH / 2]; });
+  L.bypass = [[L[BYPASS[0]][0], 92], [L[BYPASS[1]][0], 92]];
+  L.panel = { x: 16, y: 116, w: W - 32, h: 44 + STORE.rows.length * 44 };
+  L[STORE.id] = [L[STORE.under][0], L.panel.y];
+  L.h = L.panel.y + L.panel.h + 16;
+
+  const merge = (a, b = {}) => {
+    const out = { ...a };
+    for (const k in b) out[k] = typeof b[k] === 'object' ? { ...a[k], ...b[k] } : b[k];
+    return out;
+  };
+  const edgeKey = (a, b) => (a === 'bypass' || b === 'bypass' ? 'bypass' : [a, b].sort().join('-'));
+  const ends = (step) => {
+    const p = step.path.filter((t) => t !== 'bypass');
+    return p.length ? [p[0], p[p.length - 1]] : [step.focus];
+  };
+  const code = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/`([^`]+)`/g, '<code>$1</code>');
+  const who = (step) => ends(step).map((a) => NAMES[a]).join(' → ');
+
+  class Board {
+    constructor(root) {
+      this.root = root;
+      this.key = root.dataset.start;
+      this.idx = -1;
+      this.token = 0;
+      this.build();
+      this.draw();
+      this.reset();
+    }
+
+    build() {
+      const sc = SCENARIOS[this.key];
+      this.root.innerHTML = `
+        <div class="board-top"><b>${sc.label}, step by step</b><span class="meta">Click a step; the board shows that moment.</span></div>
+        <div class="board-body">
+          <div class="board-list"><ol class="steps"></ol></div>
+          <div class="board-stage"><svg role="img" aria-label="${Object.values(NAMES).join(', ')}"></svg></div>
+        </div>`;
+      this.svg = this.root.querySelector('svg');
+      this.list = this.root.querySelector('.steps');
+      this.list.addEventListener('click', (e) => {
+        const b = e.target.closest('.step-row');
+        if (b) this.select(+b.dataset.i);
+      });
+      this.list.addEventListener('keydown', (e) => {
+        const d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        const i = Math.min(this.rows.length - 1, Math.max(0, this.idx + d));
+        this.select(i);
+        this.rows[i].focus();
+      });
+    }
+
+    draw() {
+      const s = this.svg;
+      s.setAttribute('viewBox', `0 0 ${W} ${L.h}`);
+      const g = (cls) => svgEl('g', { class: cls }, s);
+      const edges = g('edges');
+      this.edges = {};
+      const line = (pts, key, cls = '') => { this.edges[key] = svgEl('polyline', { class: `edge ${cls}`, points: pts.map((p) => p.join(',')).join(' ') }, edges); };
+      NODES.slice(1).forEach((n, i) => line([L[NODES[i].id], L[n.id]], edgeKey(NODES[i].id, n.id)));
+      line([L[STORE.under], L[STORE.id]], edgeKey(STORE.under, STORE.id));
+      line([L[BYPASS[0]], ...L.bypass, L[BYPASS[1]]], 'bypass', 'bypass');
+      const layer = g('nodes');
+      const text = (cls, x, y, t, parent) => { const e = svgEl('text', { class: cls, x, y }, parent); e.textContent = t; return e; };
+      this.nodes = {};
+      for (const n of NODES) {
+        const x = L[n.id][0] - NW / 2;
+        const el = svgEl('g', { class: 'node' }, layer);
+        svgEl('rect', { class: 'frame', x, y: NY, width: NW, height: NH, rx: 3 }, el);
+        text('nname', x + 10, NY + 21, n.name, el);
+        this.nodes[n.id] = { el, sub: text('nsub', x + 10, NY + 40, '', el) };
+      }
+      const P = L.panel;
+      const st = svgEl('g', { class: 'node store' }, layer);
+      svgEl('rect', { class: 'frame', x: P.x, y: P.y, width: P.w, height: P.h, rx: 0 }, st);
+      text('ntitle', P.x + 12, P.y + 22, STORE.name, st);
+      this.nodes[STORE.id] = { el: st };
+      const cols = STORE.slots, cw = (P.w - 24) / cols;
+      this.rowsEl = Object.fromEntries(STORE.rows.map((r, bi) => {
+        const by = P.y + 50 + bi * 44;
+        const bg = svgEl('g', { class: 'bucket' }, st);
+        text('blabel', P.x + 12, by, r.label, bg);
+        const bc = text('bcount', P.x + P.w - 12, by, '', bg);
+        const cells = Array.from({ length: cols }, (_, i) => svgEl('rect', { class: 'cell', x: P.x + 12 + i * cw, y: by + 7, width: cw, height: 14 }, bg));
+        svgEl('rect', { class: 'row-frame', x: P.x + 12, y: by + 7, width: P.w - 24, height: 14 }, bg);
+        return [r.id, { bg, bc, cells }];
+      }));
+      this.dots = g('dots');
+    }
+
+    stateAt(i) {
+      const sc = SCENARIOS[this.key];
+      let st = { ...merge(SIM.init, sc.init), focus: null };
+      for (let k = 0; k <= i; k++) {
+        const step = sc.steps[k];
+        st = { ...merge(st, step.patch), focus: step.focus || (step.path.length ? step.path[step.path.length - 1] : st.focus) };
+      }
+      return st;
+    }
+
+    render(st, hot = {}) {
+      for (const n of NODES) {
+        const { el, sub } = this.nodes[n.id];
+        el.classList.toggle('off', !!st.off[n.id]);
+        sub.textContent = st.sub[n.id] || '';
+        sub.classList.toggle('bad', !!st.bad[n.id]);
+      }
+      const between = NODES.slice(NODES.findIndex((n) => n.id === BYPASS[0]) + 1, NODES.findIndex((n) => n.id === BYPASS[1]));
+      for (const k in this.edges) {
+        const e = this.edges[k];
+        const shown = k === 'bypass' ? between.some((n) => st.off[n.id]) : !k.split('-').some((id) => st.off[id]);
+        e.style.display = shown ? '' : 'none';
+        e.classList.toggle('hot', k in hot);
+        e.style.setProperty('--c', hot[k] || '');
+      }
+      this.paintFocus(st.focus);
+      this.paintStore(st.fill, st.dim);
+    }
+
+    paintFocus(f) {
+      for (const id in this.nodes) this.nodes[id].el.classList.toggle('focus', f === id);
+    }
+
+    paintStore(fill, dim) {
+      for (const id in this.rowsEl) {
+        const r = this.rowsEl[id], n = Math.round(fill[id] || 0);
+        r.cells.forEach((cell, i) => cell.classList.toggle('on', i < n));
+        r.bc.textContent = dim[id] ? 'not created' : `${n} / ${STORE.slots}`;
+        r.bg.classList.toggle('dim', !!dim[id]);
+      }
+    }
+
+    edgeKeys(path, kind) {
+      const keys = {};
+      for (let i = 0; i < path.length - 1; i++) {
+        const key = edgeKey(path[i], path[i + 1]);
+        if (!(key in keys)) keys[key] = kind === 'fail' ? 'var(--bad)' : 'var(--accent-ink)';
+      }
+      return keys;
+    }
+
+    points(path) {
+      const out = [];
+      path.forEach((tok, i) => {
+        if (tok === 'bypass') out.push(...(path[i - 1] === BYPASS[1] ? [...L.bypass].reverse() : L.bypass));
+        else out.push(L[tok]);
+      });
+      return out;
+    }
+
+    moveDot(path, kind, token) {
+      const pts = this.points(path);
+      const segs = [];
+      let total = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const d = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+        segs.push(d);
+        total += d;
+      }
+      const g = svgEl('g', { style: `--c:${kind === 'fail' ? 'var(--bad)' : 'var(--accent-ink)'}` }, this.dots);
+      svgEl('circle', { class: 'dot-ring', r: 8 }, g);
+      svgEl('circle', { class: 'dot', r: 6.5 }, g);
+      const end = kind === 'fail' ? 0.5 : 1;
+      const dur = Math.min(440, Math.max(280, total * 1.2));
+      return new Promise((resolve) => {
+        const t0 = performance.now();
+        const at = (f) => {
+          let d = f * total;
+          for (let i = 0; i < segs.length; i++) {
+            if (d <= segs[i] || i === segs.length - 1) {
+              const k = segs[i] ? Math.min(d / segs[i], 1) : 1;
+              return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k];
+            }
+            d -= segs[i];
+          }
+        };
+        const frame = (now) => {
+          if (token !== this.token) { g.remove(); resolve(false); return; }
+          const t = Math.min((now - t0) / dur, 1);
+          const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+          const [x, y] = at(e * end);
+          g.setAttribute('transform', `translate(${x} ${y})`);
+          if (t < 1) requestAnimationFrame(frame);
+          else if (kind === 'fail') {
+            g.style.transition = 'opacity 260ms';
+            g.style.opacity = 0;
+            setTimeout(() => { g.remove(); resolve(true); }, 280);
+          } else { g.remove(); resolve(true); }
+        };
+        requestAnimationFrame(frame);
+      });
+    }
+
+    tween(from, to, token) {
+      return new Promise((resolve) => {
+        const t0 = performance.now();
+        const frame = (now) => {
+          if (token !== this.token) return resolve(false);
+          const t = Math.min((now - t0) / 400, 1);
+          const fill = {};
+          for (const r of STORE.rows) fill[r.id] = (from.fill[r.id] || 0) + ((to.fill[r.id] || 0) - (from.fill[r.id] || 0)) * t;
+          this.paintStore(fill, to.dim);
+          if (t < 1) requestAnimationFrame(frame); else resolve(true);
+        };
+        requestAnimationFrame(frame);
+      });
+    }
+
+    reset() {
+      const sc = SCENARIOS[this.key];
+      this.list.innerHTML = sc.steps.map((st, i) => `<li class="step"><button type="button" class="step-row" data-i="${i}" aria-expanded="false"><span class="n">${i + 1}</span><span class="t">${code(st.short)}</span>${st.kind === 'fail' ? FAIL_ICON : '<span></span>'}</button><div class="step-more"><p class="meta">${who(st)}</p><p>${code(st.cap)}</p></div></li>`).join('');
+      this.rows = [...this.list.querySelectorAll('.step-row')];
+      this.render(this.stateAt(-1));
+    }
+
+    async select(i) {
+      if (i === this.idx) return;
+      const step = SCENARIOS[this.key].steps[i];
+      const token = ++this.token;
+      this.rows.forEach((r, n) => { r.setAttribute('aria-expanded', String(n === i)); r.parentElement.classList.toggle('on', n === i); });
+      const animate = i === this.idx + 1;
+      this.render(this.stateAt(this.idx));
+      this.idx = i;
+      if (animate) await this.runStep(i, token);
+      else this.render(this.stateAt(i), this.edgeKeys(step.path, step.kind));
+    }
+
+    async runStep(i, token) {
+      const step = SCENARIOS[this.key].steps[i];
+      const before = this.stateAt(i - 1);
+      const after = this.stateAt(i);
+      const hot = this.edgeKeys(step.path, step.kind);
+      this.render({ ...after, fill: before.fill, focus: before.focus }, hot);
+      if (!reduce && step.path.length > 1) {
+        this.paintFocus(step.path[0]);
+        if (!(await this.moveDot(step.path, step.kind, token))) return;
+      }
+      this.paintFocus(after.focus);
+      const changed = STORE.rows.some((r) => (before.fill[r.id] || 0) !== (after.fill[r.id] || 0));
+      if (!reduce && changed && !(await this.tween(before, after, token))) return;
+      this.render(after, hot);
+    }
+  }
+
+  document.querySelectorAll('.board').forEach((root) => { root.board = new Board(root); });
+})();
+
+(() => {
+  const re = /(\/\/.*$)|('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|\b(const|await|if|try|catch|return|new|async|function|let|of|in|for)\b|\b(\d+(?:\.\d+)?)\b|\b([A-Za-z_$][\w$]*)(?=\()/g;
+  const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  document.querySelectorAll('.code .l').forEach((l) => {
+    const t = l.textContent;
+    let out = '', at = 0, m;
+    re.lastIndex = 0;
+    while ((m = re.exec(t))) {
+      const c = m[1] ? 'c' : m[2] ? 's' : m[3] ? 'k' : m[4] ? 'n' : 'f';
+      out += esc(t.slice(at, m.index)) + '<span class="syn-' + c + '">' + esc(m[0]) + '</span>';
+      at = m.index + m[0].length;
+    }
+    l.innerHTML = out + esc(t.slice(at));
+  });
+})();
+
+(() => {
+  document.querySelectorAll('.copy').forEach((b) => b.addEventListener('click', () => {
+    const t = b.dataset.cmd;
+    const fallback = () => { const a = document.createElement('textarea'); a.value = t; document.body.append(a); a.select(); try { document.execCommand('copy'); } catch (e) {} a.remove(); };
+    if (navigator.clipboard) navigator.clipboard.writeText(t).catch(fallback); else fallback();
+    b.dataset.copied = '';
+    b.textContent = 'Copied';
+    setTimeout(() => { delete b.dataset.copied; b.textContent = 'Copy'; }, 1500);
+  }));
+})();
+
+(() => {
+  const root = document.documentElement, btn = document.querySelector('.theme-toggle'), ed = document.querySelector('.edition');
+  const label = () => {
+    const night = root.dataset.theme === 'dark';
+    btn.textContent = night ? 'Day edition' : 'Night edition';
+    ed.textContent = night ? ' · Night edition' : '';
+  };
+  btn.addEventListener('click', () => { root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('lesson-theme', root.dataset.theme); label(); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (localStorage.getItem('lesson-theme')) return;
+    root.dataset.theme = e.matches ? 'dark' : 'light';
+    label();
+  });
+  label();
+})();
+
+(() => {
+  const links = [...document.querySelectorAll('.strip nav a, .toc a')];
+  const targets = [...new Set(links.map((a) => document.querySelector(a.getAttribute('href'))))];
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const id = '#' + e.target.id;
+      links.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === id));
+      const parent = e.target.closest('#events');
+      if (parent && parent !== e.target) document.querySelectorAll('.toc a[href="#events"]').forEach((a) => a.classList.add('on'));
+    });
+  }, { rootMargin: '-60px 0px -70% 0px' });
+  targets.forEach((t) => obs.observe(t));
+})();
+</script>
+</body>
+</html>
